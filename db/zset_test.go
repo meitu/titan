@@ -464,3 +464,67 @@ func TestZSetZAnyOrderRangeScore(t *testing.T) {
 		})
 	}
 }
+
+func TestZSet_ZScan(t *testing.T) {
+	var members [][]byte
+	var score []float64
+
+	members = append(members, []byte("abc"))
+	members = append(members, []byte("aec"))
+	members = append(members, []byte("acc"))
+	members = append(members, []byte("bc"))
+	score = append(score, -1.1, -1, 1, 2.1)
+
+	zset, txn, err := getZSet(t, []byte("TestZSet_ZScan"))
+	assert.NoError(t, err)
+	assert.NotNil(t, txn)
+	assert.NotNil(t, zset)
+	count, err := zset.ZAdd(members, score)
+	assert.NoError(t, err)
+	assert.Equal(t, count, int64(len(members)))
+	txn.Commit(context.TODO())
+
+	type args struct {
+		cursor []byte
+		f      func(key, val []byte) bool
+	}
+	var value [][]byte
+	count = 2
+
+	tests := []struct {
+		name string
+		args args
+		want [][]byte
+	}{
+		{
+			name: "TestZSet_ZScan",
+			args: args{
+				f: func(member, score []byte) bool {
+					if count == 0 {
+						return false
+					}
+					value = append(value, member, score)
+					count--
+					return true
+
+				},
+			},
+			want: append([][]byte{}, []byte("abc"), []byte("-1.1"), []byte("aec"), []byte("-1")),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			zset, txn, err := getZSet(t, []byte("TestZSet_ZScan"))
+			assert.NoError(t, err)
+			assert.NotNil(t, txn)
+			assert.NotNil(t, zset)
+
+			err = zset.ZScan(tt.args.cursor, tt.args.f)
+			txn.Commit(context.TODO())
+
+			assert.Equal(t, value, tt.want)
+			assert.NoError(t, err)
+		})
+	}
+}

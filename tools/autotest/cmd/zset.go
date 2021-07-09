@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -171,6 +172,45 @@ func (ez *ExampleZSet) ZRevRangeEqual(t *testing.T, key string, start int, stop 
 
 func (ez *ExampleZSet) ZRevRangeEqualErr(t *testing.T, errValue string, args ...interface{}) {
 	_, err := ez.conn.Do("zrevrange", args...)
+	assert.EqualError(t, err, errValue)
+}
+
+func (ez *ExampleZSet) ZScanEqual(t *testing.T, key string, cursor string, pattern string, count int, expected string) {
+	cmd := "zscan"
+	req := make([]interface{}, 0)
+	req = append(req, key)
+	req = append(req, cursor)
+	req = append(req, "match", pattern)
+	req = append(req, "count", count)
+
+	reply, err := redis.MultiBulk(ez.conn.Do(cmd, req...))
+	lastCursor, _ := redis.String(reply[0], err)
+	strs, _ := redis.Strings(reply[1], err)
+	fmt.Println(lastCursor, strs)
+	if expected != "" {
+		expectedStrs := strings.Split(expected, " ")
+		assert.Equal(t, expectedStrs[0], lastCursor)
+		assert.Equal(t, expectedStrs[1:], strs)
+	} else {
+		assert.Equal(t, "0", lastCursor)
+	}
+	assert.Nil(t, err)
+}
+
+func (ez *ExampleZSet) ZCountEqual(t *testing.T, key string, start string, stop string, expected int64) {
+	cmd := "zcount"
+	req := make([]interface{}, 0)
+	req = append(req, key)
+	req = append(req, start)
+	req = append(req, stop)
+
+	reply, err := redis.Int64(ez.conn.Do(cmd, req...))
+	assert.Equal(t, expected, reply)
+	assert.Nil(t, err)
+}
+
+func (ez *ExampleZSet) ZCountEqualErr(t *testing.T, errValue string, args ...interface{}) {
+	_, err := ez.conn.Do("zcount", args...)
 	assert.EqualError(t, err, errValue)
 }
 
